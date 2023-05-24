@@ -1,0 +1,56 @@
+stages:
+- build
+- deploy
+
+docker-build:
+  tags:
+  - profirator
+  image: docker:19.03.12
+  stage: build
+
+  services:
+  - docker:20.10.21-dind
+  script:
+  - until docker info; do sleep 10; done
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  - echo "Building image"
+  - docker rmi --force "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
+  - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" ./app/ --no-cache
+  - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
+  #when: manual
+
+
+# Deploy job
+.deploy_template: &deploy_template
+  tags:
+  - profirator
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+  - echo "$KUBE" > "$(pwd)/kube.config"
+  - sed -i "s!IMAGE!${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_SLUG}!g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-CONSUMER_ID-/${CONSUMER_ID}/g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-PROVIDER_ID-/${PROVIDER_ID}/g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-CONSUMER_ID_M2M-/${CONSUMER_ID_M2M}/g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-PROVIDER_ID_M2M-/${PROVIDER_ID_M2M}/g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-EMAIL-/${EMAIL}/g" ./app/trusted_marketplace-deployment.yaml
+  - sed -i "s/-DOMAIN-/${DOMAIN}/g" ./app/trusted_marketplace-deployment.yaml
+  - kubectl -n ${NAMESPACE} apply -f ./app/trusted_marketplace-deployment.yaml --kubeconfig "$(pwd)/kube.config"
+  - sleep 10
+  - kubectl -n ${NAMESPACE} rollout restart deployment trusted-marketplace-portal --kubeconfig "$(pwd)/kube.config"
+  #when: manual
+
+
+do deploy staging:
+  <<: *deploy_template
+  variables:
+    KUBE: "$KUBECONFIG"
+    DOMAIN: "$DOMAIN_STAGING"
+    NAMESPACE: marketplace
+    PROVIDER_ID: "EU.EORI.FICTSODALAPROVIDER"
+    CONSUMER_ID: "EU.EORI.FICTSODALACONSUMER"
+    PROVIDER_ID_M2M: "EU.EORI.FICTSODALAPROVIDER"
+    CONSUMER_ID_M2M: "EU.EORI.FICTSODALACONSUMER"
+    EMAIL: "$I4TRUST_CONSUMER_EMAIL"
+  only:
+    - /^odala-staging/
