@@ -225,9 +225,9 @@ One set of iSHARE certificates are needed for Trusted Marketplace.
 https://dev.ishare.eu/_downloads/54a7b056df8dcc44f1049a82824d56f8/181113iSHARE_Certificate_cheat_sheet_v1.pdf
 
 Extract key & certificates from pkcs12
->openssl pkcs12 -in filename.p12 -out private_key.pem -nokeys
+>openssl pkcs12 -info -in filename.p12 -nodes -nocerts
 
->openssl pkcs12 -in filename.p12 -out certificates.pem -nocerts
+>openssl pkcs12 -in filename.p12 -out certificates.pem -nokeys
 
 ### 4.2.1 Private key
 
